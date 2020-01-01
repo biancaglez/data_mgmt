@@ -1,17 +1,15 @@
 ## FHX to sample features table
-## Taylor Edwards, Bianca Gonzalez
+## Bianca Gonzalez
 
 
 #### install and load packages #### 
-install.packages('dplyr')
 library(burnr)
 library(vctrs)
 library(stringr)
 library(dplyr)
 library(tidyverse)
 
-## download fhx to work with 
-#code from https://stackoverflow.com/questions/11433432/how-to-import-multiple-csv-files-at-once
+## download fhx to work with code from https://stackoverflow.com/questions/11433432/how-to-import-multiple-csv-files-at-once
 
 setwd("C:/Users/bgonzalez/Desktop/R_Analysis/jemez.final.fhx.files")
 temp = list.files(pattern="*.fhx")

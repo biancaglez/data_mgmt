@@ -8,13 +8,24 @@ library(dplyr)
 library(tidyverse)
 library(arsenal)
 
+#setwd("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/")
 ## download fhx to work with 
-usb <- read_fhx("C:/Users/bgonzalez/Desktop/R_Analysis/jemez.final.fhx.files/mpb.FHX")
+usb <- read_fhx("~/data_mgmt/FHX_data/vgr.fhx")
+fils <- list.files("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/FHX_data", pattern=NULL, full.names = TRUE, recursive = TRUE)
+
+## reading multiple in at a time using the read_fhx function - bind rows
+tbl <- sapply(fils, read_fhx, simplify=FALSE) %>% bind_rows()
+
+# when confirming if all series are read - remember file name may be different than 
+# location acronym used in file -- IE GP101.fhx is MCN location.
+substr(tbl$series, start = 1, stop = 4) %>% unique()
+
+#use unique series in tbl to run the rest of the code below # 
 
 #### Initalize Data with fire yrs ####
 
-#for usb get event years // only needs to be done once to get all event years
-#looks for scar events - default TRUE // injury event - default false
+# for usb get event years // only needs to be done once to get all event years
+# looks for scar events - default TRUE // injury event - default false
 event.df <- (get_event_years(usb))
 
 #### Looping through all the dataframes to add beginning fire years ####
@@ -55,9 +66,8 @@ new_usb <- usb %>%
   rename(Feature=rec_type) %>%
   dplyr::filter(Feature != "recorder_year") # will be filled out when we generate a FHX in DB
 
-
 # what variables do we need to consider when coding hard values below?
-summary(usb$rec_type)
+# summary(usb$rec_type)
 
 # creates position col, fire year, and edits feature column contents 
 new_usb <-new_usb %>%
@@ -101,7 +111,6 @@ write.table(new_usb, "C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/gp_
 
 #### generate site membership ####
 site_mem <-as.data.frame(unique(usb$series))
-
 write.csv(site_mem, file="C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/site_members.csv", na = "")
 
 
