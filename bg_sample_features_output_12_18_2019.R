@@ -1,4 +1,12 @@
-## FHX to sample features table
+######################################################
+# Purpose: Script manipulating legacy FHX fire data files using the burnR package. 
+# Converts FHX objects to CSV output with the necessary format for USGS access databases. 
+# Once data is imported from csv output to access, a new database generated FHX file is made, 
+# where FHX objects are then compared for Q/C.
+
+# Developped by: Bianca Gonzalez - contribution from Taylor Edwards
+# 01/01/2019, bianca_gonzalez@partner.nps.gov
+######################################################
 #### install and load packages #### 
 
 library(burnr)
@@ -9,19 +17,95 @@ library(tidyverse)
 library(arsenal)
 
 #setwd("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/")
-## download fhx to work with 
-usb <- read_fhx("~/data_mgmt/FHX_data/vgr.fhx")
+
 fils <- list.files("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/FHX_data", pattern=NULL, full.names = TRUE, recursive = TRUE)
 
-## reading multiple in at a time using the read_fhx function - bind rows
+## reading multiple files using the read_fhx function - bind rows
 tbl <- sapply(fils, read_fhx, simplify=FALSE) %>% bind_rows()
 
 # when confirming if all series are read - remember file name may be different than 
 # location acronym used in file -- IE GP101.fhx is MCN location.
-substr(tbl$series, start = 1, stop = 4) %>% unique()
+unq<-substr(tbl$series, start = 1, stop = 3) %>% unique()
 
-#use unique series in tbl to run the rest of the code below # 
+### add only when a letter from alphabet- how to grab all of them when there are 3-5 chars in series name?
 
+# for each multiple FHX files (unique sites) - run below code
+for(i in seq_along(unq)){
+  
+  # make a temp of unique series
+  t<-tbl %>% mutate(srs_stat = ifelse(series %in% grep(unq[i], tbl$series, value = T)
+                                      ==T, "TRUE", "FALSE")) %>% filter(srs_stat=="TRUE")
+  temp<- as_fhx(t[1:3]) #make FHX and drop last col
+  
+  # use temp to run code and dump into master file
+  event.df<- (get_event_years(temp))
+  
+  # get the total sampleIDs to iterate through later
+  df_unique<- unique(temp$series)
+  
+  # create dataframe for "begin recording fire" feature - to be bound to original fhx df
+  df_gina<-data.frame(year=NA,series=NA,Feature=NA)
+      for(i in seq_along(df_unique)){
+        df_gina[i,1]<- min(event.df[[i]]) #function for min yr of each SampleID
+        df_gina[i,2]<- names(event.df[i]) #function for variable names
+        df_gina[i,3]<-"Begin recording fire" #Name the min year beginning fire year
+      }
+  
+  #sampleID, year, fire_year, position, feature 
+  #abr01, 2019, 2019, dormant/begin, fire scar
+  
+  # reformat columns to DB format
+  df_gina <- df_gina %>%
+    mutate(FireYear = "") %>% # fire year should be empty for begin recording 
+    mutate(Position = "Not Applicable") %>%  # new col
+    rename(SampleID = series) %>% 
+    rename(Year = year)
+  
+  # rearrange - to bind when data has been recoded below
+  df_gina <- df_gina[,c(2,1,4,5,3)]
+
+  #### Pipeline to get Feature and Position Columns ####
+  new_temp <- temp %>%
+    rename(SampleID=series) %>%
+    rename(Year=year) %>%
+    rename(Feature=rec_type) %>%
+    dplyr::filter(Feature != "recorder_year") # will be filled out when we generate a FHX in DB
+
+  # creates position col, fire year, and edits feature column contents 
+  new_temp <-new_temp %>%
+    mutate(FireYear = ifelse(Feature %in% grep("_fs", new_temp$Feature,value =T) == T, Year, NA)) %>%
+    mutate(Position = ifelse(Feature %in% grep("_fs", new_temp$Feature, value = T) == T, gsub("_fs","", new_temp$Feature), 
+                             ifelse(Feature %in% grep("_fi", new_temp$Feature, value = T) == T, gsub("_fi", "", new_temp$Feature), "Not Applicable"))) %>%
+    
+    mutate(Feature = ifelse(Feature %in% grep("_fi", new_temp$Feature, value = T) == T, "Undetermined scar", 
+                            ifelse(Feature %in% grep("_fs", new_temp$Feature, value = T) == T,"Fire scar",
+                                   ifelse(Feature %in% grep("inner", new_temp$Feature, value = T) ==T, "Innermost ring", 
+                                          ifelse(Feature %in% grep("outer", new_temp$Feature, value = T) ==T, "Outermost ring", 
+                                                 ifelse(Feature %in% grep("pith", new_temp$Feature, value = T) ==T, "pith", 
+                                                        ifelse(Feature %in% grep("bark", new_temp$Feature, value = T) ==T, "Bark", Feature))))))) %>% 
+    mutate(Position = recode(Position, 
+                             latewd = "latewood", falldormant = "fall dormant", 
+                             early = "early earlywood", late = "late earlywood",
+                             middle = "Middle earlywood")) 
+  
+  # rearrange to DB format
+  new_temp<-new_temp[,c(2,1,4,5,3)]
+
+  # bind beginning years to df
+  new_temp<-rbind(new_temp,df_gina)
+  
+  # Can only assume one sample per tree // Add A to every sample in the SampleID
+  new_temp$SampleID <- paste(new_temp$SampleID, "A", sep="")
+ 
+  # with multiple FHX that belong to one site, paste into the master csv file
+  write.table(new_temp, "/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/new_temp.csv", sep = ",",
+              col.names = !file.exists("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/new_temp.csv"), append = T)
+  
+}
+
+
+#### Below code is for single FHX files to run code on ####
+usb <- read_fhx("~/data_mgmt/FHX_data/vgr.fhx")
 #### Initalize Data with fire yrs ####
 
 # for usb get event years // only needs to be done once to get all event years
@@ -108,6 +192,7 @@ write.csv(new_usb,file="C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/s
 write.table(new_usb, "C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/gp_master.csv", sep = ",",
             col.names = !file.exists("C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/gp_master.csv"), append = T)
 
+# can pass a unique object to write.table and changing the name of the object to the final result
 
 #### generate site membership ####
 site_mem <-as.data.frame(unique(usb$series))
@@ -173,3 +258,6 @@ cbind(U_A,U_B)
 # references: 
 # http://zevross.com/blog/2014/08/05/using-the-r-function-anti_join-to-find-unmatched-records/ 
 
+
+
+# make a list of FHX files that have the same site code as other FHX files -- will have to run the script without the for loop for these
