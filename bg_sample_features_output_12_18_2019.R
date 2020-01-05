@@ -25,9 +25,9 @@ tbl <- sapply(fils, read_fhx, simplify=FALSE) %>% bind_rows()
 
 # when confirming if all series are read - remember file name may be different than 
 # location acronym used in file -- IE GP101.fhx is MCN location.
-unq<-substr(tbl$series, start = 1, stop = 3) %>% unique()
 
-### add only when a letter from alphabet- how to grab all of them when there are 3-5 chars in series name?
+# need a-z only in series name only
+unq<- gsub('[[:digit:]]+', '', tbl$series) %>% unique()
 
 # for multiple FHX files (unique sites) - run below code
 for(i in seq_along(unq)){
@@ -35,7 +35,7 @@ for(i in seq_along(unq)){
   # if running code on single FHX file - comment out for loop and bring in single file & run code
   # temp <- read_fhx("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/FHX_data/vgr.fhx")
   
-  # make a temp of unique series
+  # make a df of single unique series from table of all FHX files
   t<-tbl %>% mutate(srs_stat = ifelse(series %in% grep(unq[i], tbl$series, value = T)
                                       ==T, "TRUE", "FALSE")) %>% filter(srs_stat=="TRUE")
   temp<- as_fhx(t[1:3]) #make FHX and drop last col
