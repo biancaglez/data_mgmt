@@ -29,8 +29,11 @@ unq<-substr(tbl$series, start = 1, stop = 3) %>% unique()
 
 ### add only when a letter from alphabet- how to grab all of them when there are 3-5 chars in series name?
 
-# for each multiple FHX files (unique sites) - run below code
+# for multiple FHX files (unique sites) - run below code
 for(i in seq_along(unq)){
+  
+  # if running code on single FHX file - comment out for loop and bring in single file & run code
+  # temp <- read_fhx("~/data_mgmt/FHX_data/vgr.fhx")
   
   # make a temp of unique series
   t<-tbl %>% mutate(srs_stat = ifelse(series %in% grep(unq[i], tbl$series, value = T)
@@ -103,101 +106,11 @@ for(i in seq_along(unq)){
   
 }
 
-
-#### Below code is for single FHX files to run code on ####
-usb <- read_fhx("~/data_mgmt/FHX_data/vgr.fhx")
-#### Initalize Data with fire yrs ####
-
-# for usb get event years // only needs to be done once to get all event years
-# looks for scar events - default TRUE // injury event - default false
-event.df <- (get_event_years(usb))
-
-#### Looping through all the dataframes to add beginning fire years ####
-
-# get the total sampleIDs to iterate through later
-df_unique<- unique(usb$series)
-
-# create dataframe for "begin recording fire" feature - to be bound to original fhx df
-df_gina<-data.frame(year=NA,series=NA,Feature=NA)
-
-for(i in seq_along(df_unique)){
-  df_gina[i,1]<- min(event.df[[i]]) #function for min yr of each SampleID
-  df_gina[i,2]<- names(event.df[i]) #function for variable names
-  df_gina[i,3]<-"Begin recording fire" #Name the min year beginning fire year
-}
-#sampleID, year, fire_year, position, feature 
-#abr01, 2019, 2019, dormant/begin, fire scar
-
-# reformat columns to DB format
-df_gina <- df_gina %>%
-  mutate(FireYear = "") %>% # fire year should be empty for begin recording 
-  mutate(Position = "Not Applicable") %>%  # new col
-  rename(SampleID = series) %>% 
-  rename(Year = year)
-
-# rearrange 
-df_gina <- df_gina[,c(2,1,4,5,3)]
-
-# to bind when data has been recoded below
-df_gina
-
-#### Pipeline to get Feature and Position Columns ####
-
-# Pipeline to rename and filter
-new_usb <- usb %>%
-  rename(SampleID=series) %>%
-  rename(Year=year) %>%
-  rename(Feature=rec_type) %>%
-  dplyr::filter(Feature != "recorder_year") # will be filled out when we generate a FHX in DB
-
-# what variables do we need to consider when coding hard values below?
-# summary(usb$rec_type)
-
-# creates position col, fire year, and edits feature column contents 
-new_usb <-new_usb %>%
-  mutate(FireYear = ifelse(Feature %in% grep("_fs", new_usb$Feature,value =T) == T, Year, NA)) %>%
-  mutate(Position = ifelse(Feature %in% grep("_fs", new_usb$Feature, value = T) == T, gsub("_fs","", new_usb$Feature), 
-                           ifelse(Feature %in% grep("_fi", new_usb$Feature, value = T) == T, gsub("_fi", "", new_usb$Feature), "Not Applicable"))) %>%
-  
-  mutate(Feature = ifelse(Feature %in% grep("_fi", new_usb$Feature, value = T) == T, "Undetermined scar", 
-                          ifelse(Feature %in% grep("_fs", new_usb$Feature, value = T) == T,"Fire scar",
-                                 ifelse(Feature %in% grep("inner", new_usb$Feature, value = T) ==T, "Innermost ring", 
-                                        ifelse(Feature %in% grep("outer", new_usb$Feature, value = T) ==T, "Outermost ring", 
-                                               ifelse(Feature %in% grep("pith", new_usb$Feature, value = T) ==T, "pith", 
-                                                      ifelse(Feature %in% grep("bark", new_usb$Feature, value = T) ==T, "Bark", Feature))))))) %>% 
-  mutate(Position = recode(Position, 
-                           latewd = "latewood", falldormant = "fall dormant", 
-                           early = "early earlywood", late = "late earlywood",
-                           middle = "Middle earlywood")) 
-
-# rearrange to DB format
-new_usb<-new_usb[,c(2,1,4,5,3)]
-
-# check this puppy out
-head(new_usb)
-
-# bind beginning years to df
-new_usb<-rbind(new_usb,df_gina)
-
-# Can only assume one sample per tree // Add A to every sample in the SampleID
-new_usb$SampleID <- paste(new_usb$SampleID, "A", sep="")
-
-####presto!####
-write.csv(new_usb,file="C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/ssn.csv", na = "")
-
-# ideally with every FHX from same site I make a for loop to run through the files and export a CSV that has results bound from loop
-
-# for now however.... 
-# with multiple FHX that belong to one site, paste into the master csv file
-write.table(new_usb, "C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/gp_master.csv", sep = ",",
-            col.names = !file.exists("C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/gp_master.csv"), append = T)
-
-# can pass a unique object to write.table and changing the name of the object to the final result
-
 #### generate site membership ####
-site_mem <-as.data.frame(unique(usb$series))
-write.csv(site_mem, file="C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/site_members.csv", na = "")
 
+# need to generate site membership for all FHX files
+site_mem <-as.data.frame(unique(temp$series))
+write.csv(site_mem, file="C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/site_members.csv", na = "")
 
 #### Q/C ####
 
@@ -229,6 +142,9 @@ unique(aj$series)
 
 # so it looks like B(old) stops at 1896 for recorder year and doesn't continue to 1901 like A (DB) does
 
+
+# make a list of FHX files that have the same site code as other FHX files -- will have to run the script without the for loop for these
+
 #### other Q/C operations ####
 #compare unique series
 U_A<-as.data.frame(unique(a$series)) %>%rename(id=`unique(a$series)`) %>%  arrange(id)
@@ -253,11 +169,3 @@ cbind(U_A,U_B)
 
 # FRM - database fhx has 10 extra entries - # so it looks like B(old) stops at 1896 for recorder year and doesn't continue to 1901 like A (DB) does
 # the oldest one were not created with notepad++
-
-
-# references: 
-# http://zevross.com/blog/2014/08/05/using-the-r-function-anti_join-to-find-unmatched-records/ 
-
-
-
-# make a list of FHX files that have the same site code as other FHX files -- will have to run the script without the for loop for these
