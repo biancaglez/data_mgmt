@@ -33,7 +33,7 @@ unq<-substr(tbl$series, start = 1, stop = 3) %>% unique()
 for(i in seq_along(unq)){
   
   # if running code on single FHX file - comment out for loop and bring in single file & run code
-  # temp <- read_fhx("~/data_mgmt/FHX_data/vgr.fhx")
+  # temp <- read_fhx("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/FHX_data/vgr.fhx")
   
   # make a temp of unique series
   t<-tbl %>% mutate(srs_stat = ifelse(series %in% grep(unq[i], tbl$series, value = T)
@@ -104,23 +104,28 @@ for(i in seq_along(unq)){
   write.table(new_temp, "/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/new_temp.csv", sep = ",",
               col.names = !file.exists("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/new_temp.csv"), append = T)
   
+  #### generate site membership ####
+  
+  # generates site membership for single or multiple FHX to go in the site memberships table
+  site_mem <-as.data.frame(unique(temp$series)) %>% rename(site_id =`unique(temp$series)`)
+  write.table(site_mem, file="/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/site_members.csv", sep = ",",
+              col.names = !file.exists("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/site_members.csv"), append = T)
+  
+  
 }
-
-#### generate site membership ####
-
-# need to generate site membership for all FHX files
-site_mem <-as.data.frame(unique(temp$series))
-write.csv(site_mem, file="C:/Users/bgonzalez/Desktop/R_Analysis/tricky_challenge/site_members.csv", na = "")
 
 #### Q/C ####
 
-a <- read_fhx("C:/Users/bgonzalez/Desktop/Bianca_2019/Access_databases/Jemez.database.merge/efk_dbb.fhx")
-b <- read_fhx("C:/Users/bgonzalez/Desktop/R_Analysis/jemez.final.fhx.files/efk.FHX")
+a <- read_fhx("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/FHX_data/vgr.fhx")
+b <- read_fhx("/Users/BiancaGonzalez/Desktop/Bandelier USGS/R Analysis/data_mgmt/data_mgmt/FHX_data/EFK.FHX")
 
 # find unique trees from each FHX from one site and compare trees to ensure no duplication of trees 
-new_usb %>% group_by(SampleID) %>% tally()
+new_temp %>% group_by(SampleID) %>% tally()
 
+fhxs<-list(a,b)
 #rearrange to compare dataframes 
+# lapply(fhxs, arrange) - 
+
 a<-a %>% 
   arrange(year,series,rec_type)
 
@@ -129,7 +134,7 @@ b<-b %>%
 
 all_equal(a,b, convert = TRUE)
 
-# ERROR: different number of rows - ok which one has greater length?
+# why are they differing in number of rows - ok which one has greater length?
 lapply(list(a,b), dim)
 
 # actually, let's look at the records in b that are not in a 
@@ -145,7 +150,7 @@ unique(aj$series)
 
 # make a list of FHX files that have the same site code as other FHX files -- will have to run the script without the for loop for these
 
-#### other Q/C operations ####
+#### other Q/C ####
 #compare unique series
 U_A<-as.data.frame(unique(a$series)) %>%rename(id=`unique(a$series)`) %>%  arrange(id)
 U_B<-as.data.frame(unique(b$series)) %>% rename(id=`unique(b$series)`) %>%  arrange(id)
